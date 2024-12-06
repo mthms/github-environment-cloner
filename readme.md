@@ -1,6 +1,8 @@
 
 # Clone GitHub Environment Variables Script
 
+[![GitHub stars](https://img.shields.io/github/stars/<your-username>/<repository-name>?style=social)](https://github.com/<your-username>/<repository-name>/stargazers)
+
 **`clone-github-environment-variables.sh`** is a lightweight bash script designed to **duplicate GitHub environment variables** from one environment to another within the same repository. This script is perfect for developers and DevOps engineers looking to streamline environment setup, synchronize configurations, or manage multiple environments efficiently.
 
 ---
