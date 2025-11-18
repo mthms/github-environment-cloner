@@ -1,0 +1,7 @@
+# Ignore all JSON files to prevent accidentally committing secrets
+*.json
+
+# But allow specific JSON files if needed (uncomment and add exceptions)
+# !package.json
+# !tsconfig.json
+
