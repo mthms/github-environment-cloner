@@ -119,6 +119,8 @@ GENERATE_TEMPLATE=false
 TEMPLATE_FILE=""
 CLONE_SECRETS_EMPTY=false
 
+# First, extract positional arguments (they can be anywhere)
+POSITIONAL_ARGS=()
 while [[ $# -gt 0 ]]; do
   case $1 in
     -h|--help)
@@ -156,10 +158,15 @@ while [[ $# -gt 0 ]]; do
       exit 1
       ;;
     *)
-      break
+      # Collect positional arguments
+      POSITIONAL_ARGS+=("$1")
+      shift
       ;;
   esac
 done
+
+# Set positional arguments
+set -- "${POSITIONAL_ARGS[@]}"
 
 # Script parameters
 SOURCE_ENV="${1:?Source environment required}"
@@ -183,14 +190,36 @@ clone_secrets() {
   echo "=========================================="
   
   # Fetch all secrets from source environment
-  secrets=$(gh api --paginate repos/$REPO/environments/$SOURCE_ENV/secrets 2>/dev/null | jq -s '[.[] | .secrets[]]')
+  echo "Fetching secrets from $SOURCE_ENV environment..."
+  secrets_response=$(gh api --paginate repos/$REPO/environments/$SOURCE_ENV/secrets 2>&1)
+  api_fetch_status=$?
   
-  if [[ -z "$secrets" || "$secrets" == "[]" ]]; then
+  if [[ $api_fetch_status -ne 0 ]]; then
+    echo "✗ Error: Failed to fetch secrets from $SOURCE_ENV environment."
+    echo "  Response: $secrets_response"
+    echo "  Make sure the environment exists and you have proper permissions."
+    return 1
+  fi
+  
+  secrets=$(echo "$secrets_response" | jq -s '[.[] | .secrets[]]' 2>/dev/null)
+  
+  if [[ -z "$secrets" || "$secrets" == "[]" || "$secrets" == "null" ]]; then
     echo "No secrets found in $SOURCE_ENV environment."
+    if [[ "$CLONE_SECRETS_EMPTY" == true ]]; then
+      echo "Nothing to clone with --clone-secrets-empty option."
+    fi
     return
   fi
   
-  secret_count=$(echo "$secrets" | jq 'length')
+  secret_count=$(echo "$secrets" | jq 'length' 2>/dev/null)
+  if [[ -z "$secret_count" || "$secret_count" == "0" ]]; then
+    echo "No secrets found in $SOURCE_ENV environment."
+    if [[ "$CLONE_SECRETS_EMPTY" == true ]]; then
+      echo "Nothing to clone with --clone-secrets-empty option."
+    fi
+    return
+  fi
+  
   echo "Found $secret_count secret(s) in $SOURCE_ENV environment."
   echo ""
   
@@ -254,7 +283,7 @@ clone_secrets() {
     if [[ "$CLONE_SECRETS_EMPTY" == true ]]; then
       # Use empty value
       secret_value=""
-      echo "Note: Cloning with empty value (you can update it later in GitHub UI)"
+      echo "Note: Cloning secret '$name' with empty value (you can update it later in GitHub UI)"
     elif [[ -n "$SECRETS_FILE" && -n "$secrets_temp_file" ]]; then
       # Use value from file
       secret_value=$(grep "^${name}|" "$secrets_temp_file" 2>/dev/null | cut -d'|' -f2-)
@@ -350,10 +379,17 @@ EOF
             -f "encrypted_value=$encrypted_value" \
             -f "key_id=$key_id" 2>&1)
           
-          if [[ $? -eq 0 ]]; then
+          api_status=$?
+          if [[ $api_status -eq 0 ]]; then
             echo "✓ Added secret $name to $TARGET_ENV environment."
           else
-            echo "✗ Error: Failed to add secret $name. Response: $response"
+            echo "✗ Error: Failed to add secret $name"
+            if [[ -n "$response" ]]; then
+              echo "  API Response: $response"
+            fi
+            if [[ "$CLONE_SECRETS_EMPTY" == true ]]; then
+              echo "  Note: GitHub may reject empty secrets. Try using --with-secrets or --secrets-file instead."
+            fi
           fi
         else
           local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -427,6 +463,10 @@ done
 # Clone secrets if requested
 if [[ "$CLONE_SECRETS" == true ]]; then
   clone_secrets
+else
+  echo ""
+  echo "Note: Secrets were not cloned. Use --with-secrets, --secrets-file, --clone-secrets-empty, or --generate-secrets-template to clone secrets."
+  echo "Debug: CLONE_SECRETS='$CLONE_SECRETS', CLONE_SECRETS_EMPTY='$CLONE_SECRETS_EMPTY'"
 fi
 
 echo ""
