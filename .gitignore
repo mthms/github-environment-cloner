@@ -5,3 +5,9 @@
 # !package.json
 # !tsconfig.json
 
+# Python virtual environment
+venv/
+env/
+.venv/
+.env/
+

@@ -8,6 +8,26 @@
 # You are free to use, modify, and share this script, provided the original
 # author is credited and this notice is included in all copies.
 
+# Function to find Python executable (check venv first, then system)
+find_python() {
+  local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local venv_python="$script_dir/venv/bin/python3"
+  
+  # Check if venv exists and has Python
+  if [[ -f "$venv_python" ]]; then
+    echo "$venv_python"
+    return 0
+  fi
+  
+  # Fall back to system Python
+  if command -v python3 >/dev/null 2>&1; then
+    echo "python3"
+    return 0
+  fi
+  
+  return 1
+}
+
 # Function to check dependencies
 check_dependencies() {
   local missing_deps=()
@@ -23,12 +43,18 @@ check_dependencies() {
   fi
   
   # Optional but recommended for secrets cloning
-  if ! command -v python3 >/dev/null 2>&1; then
+  PYTHON_CMD=$(find_python)
+  if [[ -z "$PYTHON_CMD" ]]; then
     warnings+=("python3 (required for cloning secrets)")
   else
-    # Check if PyNaCl is available (only if python3 exists)
-    if ! python3 -c "import nacl" >/dev/null 2>&1; then
-      warnings+=("PyNaCl library (required for cloning secrets - install with: pip3 install pynacl)")
+    # Check if PyNaCl is available
+    if ! "$PYTHON_CMD" -c "import nacl" >/dev/null 2>&1; then
+      local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+      if [[ -d "$script_dir/venv" ]]; then
+        warnings+=("PyNaCl library not found in virtual environment. Run: ./setup.sh")
+      else
+        warnings+=("PyNaCl library (required for cloning secrets - run: ./setup.sh or install with: pip3 install pynacl)")
+      fi
     fi
   fi
   
@@ -271,14 +297,17 @@ clone_secrets() {
       # Try using Python with PyNaCl if available, otherwise provide instructions
       encrypted_value=""
       
+      # Get Python command (venv or system)
+      PYTHON_CMD=$(find_python)
+      
       # Check if Python is available
-      if command -v python3 >/dev/null 2>&1; then
+      if [[ -n "$PYTHON_CMD" ]]; then
         # Try to encrypt using Python with PyNaCl
         # Use a temp file to pass the secret value safely (avoids shell escaping issues)
         local secret_temp=$(mktemp)
         echo -n "$secret_value" > "$secret_temp"
         
-        encrypted_value=$(python3 <<EOF
+        encrypted_value=$("$PYTHON_CMD" <<EOF
 import sys
 import base64
 try:
@@ -327,12 +356,21 @@ EOF
             echo "✗ Error: Failed to add secret $name. Response: $response"
           fi
         else
-          echo "✗ Error: PyNaCl library not available. Install it with: pip3 install pynacl"
-          echo "  Or set the secret manually in GitHub UI."
+          local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+          if [[ -d "$script_dir/venv" ]]; then
+            echo "✗ Error: PyNaCl library not found in virtual environment."
+            echo "  Run: ./setup.sh to install dependencies"
+            echo "  Or set the secret manually in GitHub UI."
+          else
+            echo "✗ Error: PyNaCl library not available."
+            echo "  Run: ./setup.sh to create a virtual environment and install dependencies"
+            echo "  Or install with: pip3 install pynacl"
+            echo "  Or set the secret manually in GitHub UI."
+          fi
         fi
       else
         echo "✗ Error: Python3 not found. Cannot encrypt secret."
-        echo "  Please install Python3 and PyNaCl (pip3 install pynacl) to clone secrets automatically."
+        echo "  Please install Python3 and run: ./setup.sh to set up dependencies"
         echo "  Or set the secret '$name' manually in GitHub UI."
       fi
     else

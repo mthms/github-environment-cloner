@@ -27,9 +27,11 @@ Before using the script, ensure the following tools are installed:
 ### Optional Dependencies (for Secrets Cloning)
 To clone secrets, you'll also need:
 3. **Python 3**: Usually pre-installed on macOS/Linux. [Installation Guide](https://www.python.org/downloads/)
-4. **PyNaCl Library**: Install with `pip3 install pynacl`
+4. **PyNaCl Library**: Can be installed via:
+   - **Recommended**: Run `./setup.sh` to create a virtual environment (isolated, no system pollution)
+   - **Alternative**: Install globally with `pip3 install pynacl`
 
-> **Note**: The script will check all dependencies at startup and provide helpful error messages if anything is missing. Variables can be cloned without Python3/PyNaCl, but secrets cloning requires these dependencies.
+> **Note**: The script will check all dependencies at startup and provide helpful error messages if anything is missing. Variables can be cloned without Python3/PyNaCl, but secrets cloning requires these dependencies. The script automatically uses a virtual environment if one exists (created by `setup.sh`), otherwise it uses system Python.
 
 ---
 
@@ -41,12 +43,32 @@ To clone secrets, you'll also need:
    cd github-environment-cloner
    ```
 
-2. **Make the Script Executable**:
+2. **Make Scripts Executable**:
    ```bash
-   chmod +x clone-github-environment-variables.sh
+   chmod +x clone-github-environment-variables.sh setup.sh
    ```
 
-3. **Run the Script**:
+3. **Set Up Python Dependencies (Optional, for Secrets Cloning)**:
+   
+   The script can use either a project virtual environment or your system Python. We recommend using the virtual environment to avoid polluting your system Python installation.
+   
+   **Option A: Use Virtual Environment (Recommended)**:
+   ```bash
+   ./setup.sh
+   ```
+   This will:
+   - Create a Python virtual environment in `venv/`
+   - Install PyNaCl library for secret encryption
+   - The main script will automatically detect and use this virtual environment
+   
+   **Option B: Use System Python**:
+   ```bash
+   pip3 install pynacl
+   ```
+   
+   > **Note**: The script automatically detects and uses the virtual environment if it exists, otherwise falls back to system Python. You don't need to manually activate the virtual environment.
+
+4. **Run the Script**:
    Provide the source environment, target environment, and repository as arguments.
 
 ### Basic Usage (Variables Only)
@@ -171,7 +193,10 @@ Create the secret structure in the target environment with empty values (you can
 ### Dependency Issues
 - **Error: `gh` command not found**: Ensure GitHub CLI is installed and authenticated with your account. Run `gh auth login` if needed.
 - **Error: `jq` is not installed**: Install jq using your package manager (e.g., `brew install jq` on macOS, `apt-get install jq` on Ubuntu).
-- **Warning: PyNaCl not available**: Install it with `pip3 install pynacl`. This is only needed for cloning secrets.
+- **Warning: PyNaCl not available**: 
+  - **Recommended**: Run `./setup.sh` to create a virtual environment and install PyNaCl
+  - **Alternative**: Install globally with `pip3 install pynacl`
+  - This is only needed for cloning secrets.
 
 ### Runtime Issues
 - **Empty or Missing Variables**: The script skips variables with empty values. Verify the source environment's variables.
@@ -209,12 +234,16 @@ For questions or support, feel free to reach out to [Mohamed Sharaf](mailto:moha
 
 ## 🔒 Security
 
-This repository includes a `.gitignore` file that ignores all JSON files to prevent accidentally committing secrets. Always:
+This repository includes a `.gitignore` file that ignores:
+- All JSON files (to prevent accidentally committing secrets)
+- Python virtual environment directories (`venv/`, `env/`, etc.)
 
+**Best Practices**:
 - Review files before committing
 - Never commit files containing actual secret values
 - Use interactive mode (`--with-secrets`) when possible
 - Delete or securely store secret template files after use
+- The virtual environment (`venv/`) is already ignored by git
 
 ## 🏷️ Tags
 
